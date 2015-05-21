@@ -689,6 +689,15 @@ func (d *Decoder) decode(ve reflect.Value) (int, error) {
 			return n, err
 		}
 		ve.SetInt(int64(i))
+		enum, ok := ve.Interface().(Enum)
+
+		if ok {
+			if !enum.ValidEnum(i) {
+				err := unmarshalError("decode", ErrBadEnumValue, "invalid enum", i, nil)
+				return n, err
+			}
+		}
+
 		return n, nil
 
 	case reflect.Int64:

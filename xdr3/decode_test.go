@@ -64,6 +64,12 @@ type opaqueStruct struct {
 	Array [1]uint8 `xdropaque:"false"`
 }
 
+type AnEnum int32
+
+func (e AnEnum) ValidEnum(v int32) bool {
+	return v < 2
+}
+
 // testExpectedURet is a convenience method to test an expected number of bytes
 // read and error for an unmarshal.
 func testExpectedURet(t *testing.T, name string, n, wantN int, err, wantErr error) bool {
@@ -404,6 +410,25 @@ func TestUnmarshal(t *testing.T) {
 				testName, wantElem, test.wantVal)
 			continue
 		}
+	}
+
+	// successful enum decoding
+	var anEnum AnEnum
+	_, err := Unmarshal(bytes.NewReader([]byte{0x00, 0x00, 0x00, 0x01}), &anEnum)
+
+	if err != nil {
+		t.Errorf("enum decode: expected no error, got: %v\n", err)
+	}
+
+	if anEnum != AnEnum(1) {
+		t.Errorf("enum decode: expected 1, got: %v\n", anEnum)
+	}
+
+	// failed enum decoding
+	_, err = Unmarshal(bytes.NewReader([]byte{0x00, 0x00, 0x00, 0x02}), &anEnum)
+
+	if err == nil {
+		t.Errorf("enum decode: expected error, got none")
 	}
 }
 
