@@ -1,6 +1,11 @@
 go-xdr
 ======
 
+**NOTE: this is a temporary fork, used by go-stellar-base.  We intend to work
+with the maintainers at https://github.com/davecgh/go-xdr to contribute it back.
+**
+
+
 [![Build Status](https://travis-ci.org/davecgh/go-xdr.png?branch=master)]
 (https://travis-ci.org/davecgh/go-xdr) [![Coverage Status]
 (https://coveralls.io/repos/davecgh/go-xdr/badge.png?branch=master)]
@@ -77,7 +82,7 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-  
+
 	fmt.Println("bytes read:", bytesRead)
 	fmt.Printf("h: %+v", h)
 }
