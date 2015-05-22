@@ -20,7 +20,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/davecgh/go-xdr/xdr3"
+	"github.com/nullstyle/go-xdr/xdr3"
 )
 
 // This example demonstrates how to use Marshal to automatically XDR encode
