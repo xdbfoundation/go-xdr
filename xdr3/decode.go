@@ -479,6 +479,45 @@ func (d *Decoder) decodeArray(v reflect.Value, ignoreOpaque bool) (int, error) {
 	return n, nil
 }
 
+// decodeUnion
+func (d *Decoder) decodeUnion(v reflect.Value) (int, error) {
+	// we should have already checked that v is a union
+	// prior to this call, so we panic if v is not a union
+	u := v.Interface().(Union)
+
+	i, n, err := d.DecodeInt()
+	if err != nil {
+		return n, err
+	}
+
+	vs := v.FieldByName(u.SwitchFieldName())
+	vs.SetInt(int64(i))
+
+	arm, ok := u.ArmForSwitch(i)
+
+	if !ok {
+		msg := fmt.Sprintf("switch '%d' is not valid for union", i)
+		err := unmarshalError("decode", ErrBadUnionSwitch, msg, nil, nil)
+		return n, err
+	}
+
+	if arm == "" {
+		return n, nil
+	}
+
+	vv := v.FieldByName(arm)
+
+	vv.Set(reflect.New(vv.Type().Elem()))
+
+	n2, err := d.decode(vv.Elem())
+	n += n2
+
+	if err != nil {
+		return n, err
+	}
+	return n, nil
+}
+
 // decodeStruct treats the next bytes as a series of XDR encoded elements
 // of the same type as the exported fields of the struct represented by the
 // passed reflection value.  Pointers are automatically indirected and
@@ -777,6 +816,13 @@ func (d *Decoder) decode(ve reflect.Value) (int, error) {
 		return n, nil
 
 	case reflect.Struct:
+		// If the struct's pointer implements union
+		// we need to init the union's value interface
+
+		if _, ok := ve.Interface().(Union); ok {
+			return d.decodeUnion(ve)
+		}
+
 		n, err := d.decodeStruct(ve)
 		if err != nil {
 			return n, err

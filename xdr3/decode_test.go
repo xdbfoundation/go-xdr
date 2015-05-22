@@ -70,6 +70,26 @@ func (e AnEnum) ValidEnum(v int32) bool {
 	return v < 2
 }
 
+type aUnion struct {
+	Type AnEnum
+	Data *int32
+}
+
+func (u aUnion) SwitchFieldName() string {
+	return "Type"
+}
+
+func (u aUnion) ArmForSwitch(sw int32) (string, bool) {
+	switch sw {
+	case 0:
+		return "Data", true
+	case 1:
+		return "", true
+	}
+
+	return "-", false
+}
+
 // testExpectedURet is a convenience method to test an expected number of bytes
 // read and error for an unmarshal.
 func testExpectedURet(t *testing.T, name string, n, wantN int, err, wantErr error) bool {
@@ -430,6 +450,53 @@ func TestUnmarshal(t *testing.T) {
 	if err == nil {
 		t.Errorf("enum decode: expected error, got none")
 	}
+
+	// union decoding
+	var u aUnion
+	// void arm
+	_, err = Unmarshal(bytes.NewReader([]byte{0x00, 0x00, 0x00, 0x01}), &u)
+	if err != nil {
+		t.Errorf("union decode: expected no error, got: %v\n", err)
+	}
+
+	if u.Type != AnEnum(1) {
+		t.Errorf("union decode: expected type == 1, got: %v\n", u.Type)
+	}
+
+	if u.Data != nil {
+		t.Errorf("union decode: expected data to be nil, it was not.")
+	}
+
+	// non-void arm
+	_, err = Unmarshal(bytes.NewReader([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05}), &u)
+	if err != nil {
+		t.Errorf("union decode: expected no error, got: %v\n", err)
+	}
+
+	if u.Type != AnEnum(0) {
+		t.Errorf("union decode: expected type == 0, got: %v\n", u.Type)
+	}
+
+	if u.Data == nil {
+		t.Errorf("union decode: expected data to be filled, it was not.")
+	}
+
+	if *u.Data != 5 {
+		t.Errorf("union decode: expected data to be 5, got: %v\n", *u.Data)
+	}
+
+	// invalid enum for switch
+	_, err = Unmarshal(bytes.NewReader([]byte{0x00, 0x00, 0x00, 0x02}), &u)
+	if err == nil {
+		t.Errorf("union decode: expected error, got nil")
+	}
+
+	// invalid arm for switch
+	_, err = Unmarshal(bytes.NewReader([]byte{0xFF, 0xFF, 0xFF, 0xFF}), &u)
+	if err == nil {
+		t.Errorf("union decode: expected error, got nil")
+	}
+
 }
 
 // decodeFunc is used to identify which public function of the Decoder object
