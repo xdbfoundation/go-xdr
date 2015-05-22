@@ -426,6 +426,61 @@ func (enc *Encoder) encodeArray(v reflect.Value, ignoreOpaque bool) (int, error)
 	return n, err
 }
 
+// encodeUnion writes an XDR encoded representation of the union's disciminant,
+// identified by the return value of the union's SwitchFieldName()
+// implementation, and the union's value, a populated pointer field identified
+// by the value returned by the union's ArmForSwitch() implementation.
+//
+// A MarshalError is returned if any issues are encountered while encoding
+// the union.
+//
+// Reference:
+// 	RFC Section 4.15 - Discriminated Union
+func (enc *Encoder) encodeUnion(v reflect.Value) (int, error) {
+	// we should have already checked that v is a union
+	// prior to this call, so we panic if v is not a union
+	u := v.Interface().(Union)
+
+	vs := v.FieldByName(u.SwitchFieldName())
+	n, err := enc.encode(vs)
+
+	if err != nil {
+		return n, err
+	}
+
+	sw := int32(vs.Int())
+	arm, ok := u.ArmForSwitch(sw)
+
+	// void arm, we're done
+	if arm == "" {
+		return n, nil
+	}
+
+	vv := v.FieldByName(arm)
+
+	if !vv.IsValid() || !ok {
+		msg := fmt.Sprintf("invalid union switch: %d", sw)
+		err := marshalError("encodeUnion", ErrBadUnionSwitch, msg, nil, nil)
+		return n, err
+	}
+
+	if vv.Kind() != reflect.Ptr {
+		msg := fmt.Sprintf("invalid union value field: %v", vv.Kind())
+		err := marshalError("encodeUnion", ErrBadUnionValue, msg, nil, nil)
+		return n, err
+	}
+
+	if vv.IsNil() {
+		msg := fmt.Sprintf("can't encode nil union value")
+		err := marshalError("encodeUnion", ErrBadUnionValue, msg, nil, nil)
+		return n, err
+	}
+
+	n2, err := enc.encode(vv.Elem())
+	n += n2
+	return n, err
+}
+
 // encodeStruct writes an XDR encoded representation of each value in the
 // exported fields of the struct represented by the passed reflection value to
 // the encapsulated writer and returns the number of bytes written.  Pointers
@@ -627,6 +682,11 @@ func (enc *Encoder) encode(ve reflect.Value) (int, error) {
 		return enc.encodeArray(ve, false)
 
 	case reflect.Struct:
+
+		if _, ok := ve.Interface().(Union); ok {
+			return enc.encodeUnion(ve)
+		}
+
 		return enc.encodeStruct(ve)
 
 	case reflect.Map:

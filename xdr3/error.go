@@ -66,6 +66,10 @@ const (
 
 	// ErrBadUnionSwitch indicates a union's disciminant is invalid
 	ErrBadUnionSwitch
+
+	// ErrBadUnionValue indicates a union's value is not populated when it should
+	// be
+	ErrBadUnionValue
 )
 
 // Map of ErrorCode values back to their constant names for pretty printing.
@@ -79,6 +83,7 @@ var errorCodeStrings = map[ErrorCode]string{
 	ErrIO:              "ErrIO",
 	ErrParseTime:       "ErrParseTime",
 	ErrBadUnionSwitch:  "ErrBadUnionSwitch",
+	ErrBadUnionValue:   "ErrBadUnionValue",
 }
 
 // String returns the ErrorCode as a human-readable name.

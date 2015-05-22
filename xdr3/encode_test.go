@@ -410,6 +410,86 @@ func TestMarshal(t *testing.T) {
 		t.Errorf("optional encode: unexpected result - got: %v", rv)
 	}
 
+	// Union encoding
+	// void arm
+	var u aUnion
+	u.Type = AnEnum(1)
+	w = newFixedWriter(4)
+	n, err = Marshal(w, u)
+	rv = w.Bytes()
+
+	if err != nil {
+		t.Errorf("union encode: unexpected err - got: %v\n", err)
+	}
+
+	if n != 4 {
+		t.Errorf("union encode: unexpected len - got: %v want: 4\n", n)
+	}
+
+	if !reflect.DeepEqual([]byte{0x00, 0x00, 0x00, 0x01}, rv) {
+		t.Errorf("union encode: unexpected result - got: %v", rv)
+	}
+
+	// non-void arm
+	u.Type = AnEnum(0)
+	u.Data = new(int32)
+	*u.Data = 4
+	w = newFixedWriter(8)
+	n, err = Marshal(w, u)
+	rv = w.Bytes()
+
+	if err != nil {
+		t.Errorf("union encode: unexpected err - got: %v\n", err)
+	}
+
+	if n != 8 {
+		t.Errorf("union encode: unexpected len - got: %v want: 8\n", n)
+	}
+
+	if !reflect.DeepEqual([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04}, rv) {
+		t.Errorf("union encode: unexpected result - got: %v", rv)
+	}
+
+	// invalid switch
+	u.Type = AnEnum(2)
+	w = newFixedWriter(0)
+	n, err = Marshal(w, u)
+
+	if err == nil {
+		t.Errorf("union encode: expected err, got nil\n")
+	}
+
+	if n != 0 {
+		t.Errorf("union encode: unexpected len - got: %v want: 0\n", n)
+	}
+
+	// invalid arm
+	u.Type = AnEnum(-1)
+	u.Data = nil
+	w = newFixedWriter(0)
+	n, err = Marshal(w, u)
+
+	if err == nil {
+		t.Errorf("union encode: expected err, got nil\n")
+	}
+
+	if n != 0 {
+		t.Errorf("union encode: unexpected len - got: %v want: 0\n", n)
+	}
+
+	// invalid value
+	u.Type = AnEnum(0)
+	u.Data = nil
+	w = newFixedWriter(0)
+	n, err = Marshal(w, u)
+
+	if err == nil {
+		t.Errorf("union encode: expected err, got nil\n")
+	}
+
+	if n != 0 {
+		t.Errorf("union encode: unexpected len - got: %v want: 0\n", n)
+	}
 }
 
 // encodeFunc is used to identify which public function of the Encoder object
