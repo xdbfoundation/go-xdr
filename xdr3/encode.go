@@ -448,7 +448,6 @@ func (enc *Encoder) encodeStruct(v reflect.Value) (int, error) {
 			continue
 		}
 		vf := v.Field(i)
-		vf = enc.indirect(vf)
 
 		// Handle non-opaque data to []uint8 and [#]uint8 based on struct tag.
 		tag := vtf.Tag.Get("xdropaque")
