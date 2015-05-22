@@ -342,6 +342,34 @@ func TestMarshal(t *testing.T) {
 			continue
 		}
 	}
+
+	// enum encoding
+
+	// good enum
+	w := newFixedWriter(4)
+	_, err := Marshal(w, AnEnum(1))
+	rv := w.Bytes()
+
+	if err != nil {
+		t.Errorf("enum encode: unexpected err - got: %v\n", err)
+	}
+
+	if len(rv) != 4 {
+		t.Errorf("enum encode: unexpected len - got: %v want: 4\n", len(rv))
+	}
+
+	if !reflect.DeepEqual([]byte{0x00, 0x00, 0x00, 0x01}, rv) {
+		t.Errorf("enum encode: unexpected result - got: %v", rv)
+	}
+
+	// bad enum
+	w = newFixedWriter(4)
+	_, err = Marshal(w, AnEnum(2))
+	rv = w.Bytes()
+
+	if err == nil {
+		t.Errorf("enum encode: expected err, got nil")
+	}
 }
 
 // encodeFunc is used to identify which public function of the Encoder object

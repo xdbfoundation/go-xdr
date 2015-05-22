@@ -550,15 +550,12 @@ func (enc *Encoder) encodeInterface(v reflect.Value) (int, error) {
 // the encapsulated writer and returns the number of bytes written.  It is a
 // recursive function, so cyclic data structures are not supported and will
 // result in an infinite loop.
-func (enc *Encoder) encode(v reflect.Value) (int, error) {
-	if !v.IsValid() {
-		msg := fmt.Sprintf("type '%s' is not valid", v.Kind().String())
+func (enc *Encoder) encode(ve reflect.Value) (int, error) {
+	if !ve.IsValid() {
+		msg := fmt.Sprintf("type '%s' is not valid", ve.Kind().String())
 		err := marshalError("encode", ErrUnsupportedType, msg, nil, nil)
 		return 0, err
 	}
-
-	// Indirect through pointers to get at the concrete value.
-	ve := enc.indirect(v)
 
 	// Handle time.Time values by encoding them as an RFC3339 formatted
 	// string with nanosecond precision.  Check the type string before
@@ -574,8 +571,16 @@ func (enc *Encoder) encode(v reflect.Value) (int, error) {
 	// Handle native Go types.
 	switch ve.Kind() {
 	case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int:
-		return enc.EncodeInt(int32(ve.Int()))
+		val := int32(ve.Int())
 
+		if e, ok := ve.Interface().(Enum); ok {
+			if !e.ValidEnum(val) {
+				err := marshalError("encode", ErrBadEnumValue, "invalid enum", ve, nil)
+				return 0, err
+			}
+		}
+
+		return enc.EncodeInt(val)
 	case reflect.Int64:
 		return enc.EncodeHyper(ve.Int())
 
