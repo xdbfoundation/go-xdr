@@ -347,15 +347,15 @@ func TestMarshal(t *testing.T) {
 
 	// good enum
 	w := newFixedWriter(4)
-	_, err := Marshal(w, AnEnum(1))
+	n, err := Marshal(w, AnEnum(1))
 	rv := w.Bytes()
 
 	if err != nil {
 		t.Errorf("enum encode: unexpected err - got: %v\n", err)
 	}
 
-	if len(rv) != 4 {
-		t.Errorf("enum encode: unexpected len - got: %v want: 4\n", len(rv))
+	if n != 4 {
+		t.Errorf("enum encode: unexpected len - got: %v want: 4\n", n)
 	}
 
 	if !reflect.DeepEqual([]byte{0x00, 0x00, 0x00, 0x01}, rv) {
@@ -370,6 +370,46 @@ func TestMarshal(t *testing.T) {
 	if err == nil {
 		t.Errorf("enum encode: expected err, got nil")
 	}
+
+	// Optional fields
+	var opt *int32
+
+	// nil
+	w = newFixedWriter(4)
+	n, err = TstEncode(w)(reflect.ValueOf(opt))
+	rv = w.Bytes()
+
+	if err != nil {
+		t.Errorf("optional encode: unexpected err - got: %v\n", err)
+	}
+
+	if n != 4 {
+		t.Errorf("optional encode: unexpected len - got: %v want: 4\n", n)
+	}
+
+	if !reflect.DeepEqual([]byte{0x00, 0x00, 0x00, 0x00}, rv) {
+		t.Errorf("optional encode: unexpected result - got: %v", rv)
+	}
+
+	//non-nil
+	opt = new(int32)
+	*opt = 4
+	w = newFixedWriter(8)
+	n, err = TstEncode(w)(reflect.ValueOf(opt))
+	rv = w.Bytes()
+
+	if err != nil {
+		t.Errorf("optional encode: unexpected err - got: %v\n", err)
+	}
+
+	if n != 8 {
+		t.Errorf("optional encode: unexpected len - got: %v want: 8\n", n)
+	}
+
+	if !reflect.DeepEqual([]byte{0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x04}, rv) {
+		t.Errorf("optional encode: unexpected result - got: %v", rv)
+	}
+
 }
 
 // encodeFunc is used to identify which public function of the Encoder object

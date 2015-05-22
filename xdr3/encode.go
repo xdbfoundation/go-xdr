@@ -551,10 +551,29 @@ func (enc *Encoder) encodeInterface(v reflect.Value) (int, error) {
 // recursive function, so cyclic data structures are not supported and will
 // result in an infinite loop.
 func (enc *Encoder) encode(ve reflect.Value) (int, error) {
+	var n int
+
 	if !ve.IsValid() {
 		msg := fmt.Sprintf("type '%s' is not valid", ve.Kind().String())
 		err := marshalError("encode", ErrUnsupportedType, msg, nil, nil)
-		return 0, err
+		return n, err
+	}
+
+	if ve.Kind() == reflect.Ptr {
+		if ve.IsNil() {
+			return enc.EncodeBool(false)
+		}
+
+		n2, err := enc.EncodeBool(true)
+		n += n2
+
+		if err != nil {
+			return n, err
+		}
+
+		n2, err = enc.encode(ve.Elem())
+		n += n2
+		return n, err
 	}
 
 	// Handle time.Time values by encoding them as an RFC3339 formatted
