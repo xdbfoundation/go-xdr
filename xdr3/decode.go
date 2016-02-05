@@ -653,9 +653,9 @@ func (d *Decoder) decodeInterface(v reflect.Value) (int, error) {
 	}
 
 	// Extract underlying value from the interface and indirect through
-	// pointers allocating them as needed.
+	// any pointer, allocating as needed.
 	ve := reflect.ValueOf(v.Interface())
-	ve, err := d.indirect(ve)
+	ve, err := d.indirectIfPtr(ve)
 	if err != nil {
 		return 0, err
 	}
@@ -681,19 +681,6 @@ func (d *Decoder) decode(ve reflect.Value) (int, error) {
 		return 0, err
 	}
 
-	if ve.Kind() == reflect.Ptr {
-		present, n, err := d.DecodeBool()
-
-		if err != nil || !present {
-			return n, err
-		}
-
-		ve, err = d.indirect(ve)
-		if err != nil {
-			return n, err
-		}
-	}
-
 	// Handle time.Time values by decoding them as an RFC3339 formatted
 	// string with nanosecond precision.  Check the type string rather
 	// than doing a full blown conversion to interface and type assertion
@@ -716,6 +703,10 @@ func (d *Decoder) decode(ve reflect.Value) (int, error) {
 
 	// Handle native Go types.
 	switch ve.Kind() {
+
+	case reflect.Ptr:
+		return d.decodePtr(ve)
+
 	case reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int:
 		i, n, err := d.DecodeInt()
 		if err != nil {
@@ -852,27 +843,55 @@ func (d *Decoder) decode(ve reflect.Value) (int, error) {
 	return 0, err
 }
 
-// indirect dereferences pointers allocating them as needed until it reaches
-// a non-pointer.  This allows transparent decoding through arbitrary levels
-// of indirection.
-func (d *Decoder) indirect(v reflect.Value) (reflect.Value, error) {
-	rv := v
-	for rv.Kind() == reflect.Ptr {
-		// Allocate pointer if needed.
-		isNil := rv.IsNil()
-		if isNil && !rv.CanSet() {
-			msg := fmt.Sprintf("unable to allocate pointer for '%v'",
-				rv.Type().String())
-			err := unmarshalError("indirect", ErrNotSettable, msg,
-				nil, nil)
-			return rv, err
-		}
-		if isNil {
-			rv.Set(reflect.New(rv.Type().Elem()))
-		}
-		rv = rv.Elem()
+func allocPtrIfNil(v *reflect.Value) error {
+	if v.Kind() != reflect.Ptr {
+		msg := fmt.Sprintf("value is not a pointer: '%v'",
+			v.Type().String())
+		err := unmarshalError("decodePtr", ErrBadArguments, msg,
+			nil, nil)
+		return err
 	}
-	return rv, nil
+	isNil := v.IsNil()
+	if isNil && !v.CanSet() {
+		msg := fmt.Sprintf("unable to allocate pointer for '%v'",
+			v.Type().String())
+		err := unmarshalError("decodePtr", ErrNotSettable, msg,
+			nil, nil)
+		return err
+	}
+	if isNil {
+		v.Set(reflect.New(v.Type().Elem()))
+	}
+	return nil
+}
+
+// decodePtr decodes a single tagged XDR pointer type: one 4-byte
+// boolean followed by an encoded referent, which is allocated if needed.
+func (d *Decoder) decodePtr(v reflect.Value) (int, error) {
+
+	present, n, err := d.DecodeBool()
+
+	if err != nil || !present {
+		return n, err
+	}
+
+	if err = allocPtrIfNil(&v); err != nil {
+		return n, err
+	}
+
+	n2, err := d.decode(v.Elem())
+	return n + n2, err
+}
+
+
+// IndirectIfPtr allocates a pointee and dereferences it, if passed a Ptr type,
+// otherwise returns the passed value.
+func (d *Decoder) indirectIfPtr(v reflect.Value) (reflect.Value, error) {
+	if v.Kind() == reflect.Ptr {
+		err := allocPtrIfNil(&v)
+		return v.Elem(), err
+	}
+	return v, nil
 }
 
 // Decode operates identically to the Unmarshal function with the exception of
