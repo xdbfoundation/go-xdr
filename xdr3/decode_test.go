@@ -102,11 +102,16 @@ func testExpectedURet(t *testing.T, name string, n, wantN int, err, wantErr erro
 	}
 
 	// Next check for the expected error.
+	return assertError(t, name, err, wantErr)
+}
+
+func assertError(t *testing.T, name string, err, wantErr error) bool {
 	if reflect.TypeOf(err) != reflect.TypeOf(wantErr) {
 		t.Errorf("%s: failed to detect error - got: %v <%[2]T> want: %T",
 			name, err, wantErr)
 		return false
 	}
+
 	if rerr, ok := err.(*UnmarshalError); ok {
 		if werr, ok := wantErr.(*UnmarshalError); ok {
 			if rerr.ErrorCode != werr.ErrorCode {
@@ -662,9 +667,9 @@ func TestDecoder(t *testing.T) {
 		case fDecodeInt:
 			rv, n, err = dec.DecodeInt()
 		case fDecodeOpaque:
-			rv, n, err = dec.DecodeOpaque()
+			rv, n, err = dec.DecodeOpaque(0)
 		case fDecodeString:
-			rv, n, err = dec.DecodeString()
+			rv, n, err = dec.DecodeString(0)
 		case fDecodeUhyper:
 			rv, n, err = dec.DecodeUhyper()
 		case fDecodeUint:
@@ -713,7 +718,7 @@ func TestUnmarshalCorners(t *testing.T) {
 	testName = "Decode to unsettable pointer"
 	expectedN = 4
 	expectedErr = &UnmarshalError{ErrorCode: ErrNotSettable}
-	n, err = TstDecode(bytes.NewReader(buf))(reflect.ValueOf(i32p))
+	n, err = TstDecode(bytes.NewReader(buf))(reflect.ValueOf(i32p), 0)
 	testExpectedURet(t, testName, n, expectedN, err, expectedErr)
 
 	// Ensure unmarshal to indirected unsettable pointer returns the
@@ -755,7 +760,7 @@ func TestUnmarshalCorners(t *testing.T) {
 	testName = "Decode invalid reflect value"
 	expectedN = 0
 	expectedErr = error(&UnmarshalError{ErrorCode: ErrUnsupportedType})
-	n, err = TstDecode(bytes.NewReader(buf))(reflect.Value{})
+	n, err = TstDecode(bytes.NewReader(buf))(reflect.Value{}, 0)
 	testExpectedURet(t, testName, n, expectedN, err, expectedErr)
 
 	// Ensure unmarshal to a slice with a cap and 0 length adjusts the
@@ -801,7 +806,7 @@ func TestUnmarshalCorners(t *testing.T) {
 	var ustruct unsettableStruct
 	expectedN = 0
 	expectedErr = error(&UnmarshalError{ErrorCode: ErrNotSettable})
-	n, err = TstDecode(bytes.NewReader(buf))(reflect.ValueOf(ustruct))
+	n, err = TstDecode(bytes.NewReader(buf))(reflect.ValueOf(ustruct), 0)
 	testExpectedURet(t, testName, n, expectedN, err, expectedErr)
 
 	// Ensure decode to struct with unsettable pointer fields return
@@ -813,6 +818,124 @@ func TestUnmarshalCorners(t *testing.T) {
 	var upstruct unsettablePointerStruct
 	expectedN = 0
 	expectedErr = error(&UnmarshalError{ErrorCode: ErrNotSettable})
-	n, err = TstDecode(bytes.NewReader(buf))(reflect.ValueOf(upstruct))
+	n, err = TstDecode(bytes.NewReader(buf))(reflect.ValueOf(upstruct), 0)
 	testExpectedURet(t, testName, n, expectedN, err, expectedErr)
+}
+
+type String32 string
+
+var _ Sized = String32("hello")
+
+func (s String32) XDRMaxSize() int {
+	return 32
+}
+
+func TestSizedType(t *testing.T) {
+	cases := map[string]struct {
+		input []byte
+		out   string
+		err   error
+	}{
+		// works for 0 length
+		"0 length": {[]byte{0x00, 0x00, 0x00, 0x00}, "", nil},
+		// works for 1 length
+		"1 length": {[]byte{0x00, 0x00, 0x00, 0x01, 0x48, 0x00, 0x00, 0x00}, "H", nil},
+		// works for 32 length
+		"32 length": {
+			[]byte{
+				0x00, 0x00, 0x00, 0x20,
+				0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48,
+				0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48,
+				0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48,
+				0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48,
+			},
+			"HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH",
+			nil,
+		},
+		// fails for 33 length
+		"33 length": {
+			[]byte{
+				0x00, 0x00, 0x00, 0x21,
+				0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48,
+				0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48,
+				0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48,
+				0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48,
+				0x48, 0x00, 0x00, 0x00,
+			},
+			"",
+			&UnmarshalError{ErrorCode: ErrOverflow},
+		},
+	}
+
+	for name, kase := range cases {
+		var out String32
+		r := bytes.NewReader(kase.input)
+		_, err := Unmarshal(r, &out)
+
+		if !assertError(t, name, err, kase.err) {
+			continue
+		}
+
+		if string(out) != kase.out {
+			t.Errorf("%s: expected output to be %#v, but got %#v", name, kase.out, out)
+			continue
+		}
+	}
+}
+
+type sizedField struct {
+	Val string `xdrmaxsize:"32"`
+}
+
+func TestSizedField(t *testing.T) {
+	cases := map[string]struct {
+		input []byte
+		out   string
+		err   error
+	}{
+		// works for 0 length
+		"0 length": {[]byte{0x00, 0x00, 0x00, 0x00}, "", nil},
+		// works for 1 length
+		"1 length": {[]byte{0x00, 0x00, 0x00, 0x01, 0x48, 0x00, 0x00, 0x00}, "H", nil},
+		// works for 32 length
+		"32 length": {
+			[]byte{
+				0x00, 0x00, 0x00, 0x20,
+				0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48,
+				0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48,
+				0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48,
+				0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48,
+			},
+			"HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH",
+			nil,
+		},
+		// fails for 33 length
+		"33 length": {
+			[]byte{
+				0x00, 0x00, 0x00, 0x21,
+				0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48,
+				0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48,
+				0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48,
+				0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48, 0x48,
+				0x48, 0x00, 0x00, 0x00,
+			},
+			"",
+			&UnmarshalError{ErrorCode: ErrOverflow},
+		},
+	}
+
+	for name, kase := range cases {
+		var out sizedField
+		r := bytes.NewReader(kase.input)
+		_, err := Unmarshal(r, &out)
+
+		if !assertError(t, name, err, kase.err) {
+			continue
+		}
+
+		if out.Val != kase.out {
+			t.Errorf("%s: expected output to be %#v, but got %#v", name, kase.out, out.Val)
+			continue
+		}
+	}
 }

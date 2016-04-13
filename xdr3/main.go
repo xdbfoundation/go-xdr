@@ -7,6 +7,14 @@ type Enum interface {
 	ValidEnum(int32) bool
 }
 
+// Sized types are types that have an explicit maximum size.  By default, the
+// variable length XDR types (VarArray, VarOpaque and String) have a maximum
+// byte size of a 2^32-1, but an implementor of this type may reduce that
+// maximum to an appropriate value for the XDR schema in use.
+type Sized interface {
+	XDRMaxSize() int
+}
+
 // Union indicates the implementing type should be serialized/deserialized as
 // an XDR Union.  The implementer must provide public fields, one for the
 // union's disciminant, whose name must be returned by ArmForSwitch(), and
