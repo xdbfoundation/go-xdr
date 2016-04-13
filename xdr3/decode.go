@@ -21,6 +21,7 @@ import (
 	"io"
 	"math"
 	"reflect"
+	"strconv"
 	"time"
 )
 
@@ -333,12 +334,17 @@ func (d *Decoder) DecodeFixedOpaque(size int32) ([]byte, int, error) {
 // Reference:
 // 	RFC Section 4.10 - Variable-Length Opaque Data
 // 	Unsigned integer length followed by fixed opaque data of that length
-func (d *Decoder) DecodeOpaque() ([]byte, int, error) {
+func (d *Decoder) DecodeOpaque(maxSize int) ([]byte, int, error) {
 	dataLen, n, err := d.DecodeUint()
 	if err != nil {
 		return nil, n, err
 	}
-	if uint(dataLen) > uint(maxInt32) {
+
+	if maxSize == 0 {
+		maxSize = maxInt32
+	}
+
+	if uint(dataLen) > uint(maxSize) {
 		err := unmarshalError("DecodeOpaque", ErrOverflow, errMaxSlice,
 			dataLen, nil)
 		return nil, n, err
@@ -366,12 +372,17 @@ func (d *Decoder) DecodeOpaque() ([]byte, int, error) {
 // 	RFC Section 4.11 - String
 // 	Unsigned integer length followed by bytes zero-padded to a multiple of
 // 	four
-func (d *Decoder) DecodeString() (string, int, error) {
+func (d *Decoder) DecodeString(maxSize int) (string, int, error) {
 	dataLen, n, err := d.DecodeUint()
 	if err != nil {
 		return "", n, err
 	}
-	if uint(dataLen) > uint(maxInt32) {
+
+	if maxSize == 0 {
+		maxSize = maxInt32
+	}
+
+	if uint(dataLen) > uint(maxSize) {
 		err = unmarshalError("DecodeString", ErrOverflow, errMaxSlice,
 			dataLen, nil)
 		return "", n, err
@@ -412,7 +423,7 @@ func (d *Decoder) decodeFixedArray(v reflect.Value, ignoreOpaque bool) (int, err
 	// Decode each array element.
 	var n int
 	for i := 0; i < v.Len(); i++ {
-		n2, err := d.decode(v.Index(i))
+		n2, err := d.decode(v.Index(i), 0)
 		n += n2
 		if err != nil {
 			return n, err
@@ -436,12 +447,17 @@ func (d *Decoder) decodeFixedArray(v reflect.Value, ignoreOpaque bool) (int, err
 // 	RFC Section 4.13 - Variable-Length Array
 // 	Unsigned integer length followed by individually XDR encoded array
 // 	elements
-func (d *Decoder) decodeArray(v reflect.Value, ignoreOpaque bool) (int, error) {
+func (d *Decoder) decodeArray(v reflect.Value, ignoreOpaque bool, maxSize int) (int, error) {
 	dataLen, n, err := d.DecodeUint()
 	if err != nil {
 		return n, err
 	}
-	if uint(dataLen) > uint(maxInt32) {
+
+	if maxSize == 0 {
+		maxSize = maxInt32
+	}
+
+	if uint(dataLen) > uint(maxSize) {
 		err := unmarshalError("decodeArray", ErrOverflow, errMaxSlice,
 			dataLen, nil)
 		return n, err
@@ -470,7 +486,7 @@ func (d *Decoder) decodeArray(v reflect.Value, ignoreOpaque bool) (int, error) {
 
 	// Decode each slice element.
 	for i := 0; i < sliceLen; i++ {
-		n2, err := d.decode(v.Index(i))
+		n2, err := d.decode(v.Index(i), 0)
 		n += n2
 		if err != nil {
 			return n, err
@@ -509,7 +525,7 @@ func (d *Decoder) decodeUnion(v reflect.Value) (int, error) {
 
 	vv.Set(reflect.New(vv.Type().Elem()))
 
-	n2, err := d.decode(vv.Elem())
+	n2, err := d.decode(vv.Elem(), 0)
 	n += n2
 
 	if err != nil {
@@ -557,7 +573,12 @@ func (d *Decoder) decodeStruct(v reflect.Value) (int, error) {
 		if tag == "false" {
 			switch vf.Kind() {
 			case reflect.Slice:
-				n2, err := d.decodeArray(vf, true)
+				maxSize := 0
+				if dest, ok := vf.Interface().(Sized); ok {
+					maxSize = dest.XDRMaxSize()
+				}
+
+				n2, err := d.decodeArray(vf, true, maxSize)
 				n += n2
 				if err != nil {
 					return n, err
@@ -574,8 +595,18 @@ func (d *Decoder) decodeStruct(v reflect.Value) (int, error) {
 			}
 		}
 
+		maxSize := 0
+		sizeTag := vtf.Tag.Get("xdrmaxsize")
+		if sizeTag != "" {
+			sz, err := strconv.ParseInt(sizeTag, 10, 32)
+			if err != nil {
+				return n, err
+			}
+			maxSize = int(sz)
+		}
+
 		// Decode each struct field.
-		n2, err := d.decode(vf)
+		n2, err := d.decode(vf, maxSize)
 		n += n2
 		if err != nil {
 			return n, err
@@ -619,14 +650,14 @@ func (d *Decoder) decodeMap(v reflect.Value) (int, error) {
 	elemType := vt.Elem()
 	for i := uint32(0); i < dataLen; i++ {
 		key := reflect.New(keyType).Elem()
-		n2, err := d.decode(key)
+		n2, err := d.decode(key, 0)
 		n += n2
 		if err != nil {
 			return n, err
 		}
 
 		val := reflect.New(elemType).Elem()
-		n2, err = d.decode(val)
+		n2, err = d.decode(val, 0)
 		n += n2
 		if err != nil {
 			return n, err
@@ -666,7 +697,7 @@ func (d *Decoder) decodeInterface(v reflect.Value) (int, error) {
 			nil, nil)
 		return 0, err
 	}
-	return d.decode(ve)
+	return d.decode(ve, 0)
 }
 
 // decode is the main workhorse for unmarshalling via reflection.  It uses
@@ -674,7 +705,7 @@ func (d *Decoder) decodeInterface(v reflect.Value) (int, error) {
 // the encapsulated reader.  It is a recursive function,
 // so cyclic data structures are not supported and will result in an infinite
 // loop.  It returns the  the number of bytes actually read.
-func (d *Decoder) decode(ve reflect.Value) (int, error) {
+func (d *Decoder) decode(ve reflect.Value, maxSize int) (int, error) {
 	if !ve.IsValid() {
 		msg := fmt.Sprintf("type '%s' is not valid", ve.Kind().String())
 		err := unmarshalError("decode", ErrUnsupportedType, msg, nil, nil)
@@ -687,7 +718,7 @@ func (d *Decoder) decode(ve reflect.Value) (int, error) {
 	// since checking a string is much quicker.
 	if ve.Type().String() == "time.Time" {
 		// Read the value as a string and parse it.
-		timeString, n, err := d.DecodeString()
+		timeString, n, err := d.DecodeString(maxSize)
 		if err != nil {
 			return n, err
 		}
@@ -785,7 +816,11 @@ func (d *Decoder) decode(ve reflect.Value) (int, error) {
 		return n, nil
 
 	case reflect.String:
-		s, n, err := d.DecodeString()
+		if dest, ok := ve.Interface().(Sized); ok {
+			maxSize = dest.XDRMaxSize()
+		}
+
+		s, n, err := d.DecodeString(maxSize)
 		if err != nil {
 			return n, err
 		}
@@ -800,7 +835,11 @@ func (d *Decoder) decode(ve reflect.Value) (int, error) {
 		return n, nil
 
 	case reflect.Slice:
-		n, err := d.decodeArray(ve, false)
+		if dest, ok := ve.Interface().(Sized); ok {
+			maxSize = dest.XDRMaxSize()
+		}
+
+		n, err := d.decodeArray(ve, false, maxSize)
 		if err != nil {
 			return n, err
 		}
@@ -879,10 +918,9 @@ func (d *Decoder) decodePtr(v reflect.Value) (int, error) {
 		return n, err
 	}
 
-	n2, err := d.decode(v.Elem())
+	n2, err := d.decode(v.Elem(), 0)
 	return n + n2, err
 }
-
 
 // IndirectIfPtr allocates a pointee and dereferences it, if passed a Ptr type,
 // otherwise returns the passed value.
@@ -919,7 +957,7 @@ func (d *Decoder) Decode(v interface{}) (int, error) {
 		return 0, err
 	}
 
-	return d.decode(vv.Elem())
+	return d.decode(vv.Elem(), 0)
 }
 
 // NewDecoder returns a Decoder that can be used to manually decode XDR data
