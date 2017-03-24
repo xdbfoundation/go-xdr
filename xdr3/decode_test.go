@@ -67,12 +67,13 @@ type opaqueStruct struct {
 type AnEnum int32
 
 func (e AnEnum) ValidEnum(v int32) bool {
-	return v < 2
+	return v < 3
 }
 
 type aUnion struct {
 	Type AnEnum
 	Data *int32
+	Text *string `xdrmaxsize:"28"`
 }
 
 func (u aUnion) SwitchFieldName() string {
@@ -84,6 +85,8 @@ func (u aUnion) ArmForSwitch(sw int32) (string, bool) {
 	case 0:
 		return "Data", true
 	case 1:
+		return "Text", true
+	case 2: // void
 		return "", true
 	}
 
@@ -450,7 +453,7 @@ func TestUnmarshal(t *testing.T) {
 	}
 
 	// failed enum decoding
-	_, err = Unmarshal(bytes.NewReader([]byte{0x00, 0x00, 0x00, 0x02}), &anEnum)
+	_, err = Unmarshal(bytes.NewReader([]byte{0x00, 0x00, 0x00, 0x03}), &anEnum)
 
 	if err == nil {
 		t.Errorf("enum decode: expected error, got none")
@@ -459,13 +462,13 @@ func TestUnmarshal(t *testing.T) {
 	// union decoding
 	var u aUnion
 	// void arm
-	_, err = Unmarshal(bytes.NewReader([]byte{0x00, 0x00, 0x00, 0x01}), &u)
+	_, err = Unmarshal(bytes.NewReader([]byte{0x00, 0x00, 0x00, 0x02}), &u)
 	if err != nil {
 		t.Errorf("union decode: expected no error, got: %v\n", err)
 	}
 
-	if u.Type != AnEnum(1) {
-		t.Errorf("union decode: expected type == 1, got: %v\n", u.Type)
+	if u.Type != AnEnum(2) {
+		t.Errorf("union decode: expected type == 2, got: %v\n", u.Type)
 	}
 
 	if u.Data != nil {
@@ -490,8 +493,29 @@ func TestUnmarshal(t *testing.T) {
 		t.Errorf("union decode: expected data to be 5, got: %v\n", *u.Data)
 	}
 
+	// non-void arm: xdrmaxsize
+	_, err = Unmarshal(bytes.NewReader([]byte{
+		0x00, 0x00, 0x00, 0x01, // Text
+		0x00, 0x00, 0x00, 0x1D, // String length = 29
+		0x74, 0x65, 0x73, 0x74, // "test" 4
+		0x74, 0x65, 0x73, 0x74, // "test" 8
+		0x74, 0x65, 0x73, 0x74, // "test" 12
+		0x74, 0x65, 0x73, 0x74, // "test" 16
+		0x74, 0x65, 0x73, 0x74, // "test" 20
+		0x74, 0x65, 0x73, 0x74, // "test" 24
+		0x74, 0x65, 0x73, 0x74, // "test" 28
+		0x74, 0x00, 0x00, 0x00, // "test" 29
+	}), &u)
+	if err == nil {
+		t.Errorf("union decode: expected error")
+	}
+
+	if err.Error() != "xdr:DecodeString: data exceeds max slice limit - read: '29'" {
+		t.Errorf("union decode: expected 'data exceeds max slice limit' error")
+	}
+
 	// invalid enum for switch
-	_, err = Unmarshal(bytes.NewReader([]byte{0x00, 0x00, 0x00, 0x02}), &u)
+	_, err = Unmarshal(bytes.NewReader([]byte{0x00, 0x00, 0x00, 0x03}), &u)
 	if err == nil {
 		t.Errorf("union decode: expected error, got nil")
 	}

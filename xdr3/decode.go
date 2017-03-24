@@ -525,7 +525,24 @@ func (d *Decoder) decodeUnion(v reflect.Value) (int, error) {
 
 	vv.Set(reflect.New(vv.Type().Elem()))
 
-	n2, err := d.decode(vv.Elem(), 0)
+	field, ok := v.Type().FieldByName(arm)
+	if !ok {
+		msg := fmt.Sprintf("switch '%s' is not valid for union", arm)
+		err := unmarshalError("decode", ErrBadUnionSwitch, msg, nil, nil)
+		return n, err
+	}
+
+	maxSize := 0
+	sizeTag := field.Tag.Get("xdrmaxsize")
+	if sizeTag != "" {
+		sz, err := strconv.ParseInt(sizeTag, 10, 32)
+		if err != nil {
+			return n, err
+		}
+		maxSize = int(sz)
+	}
+
+	n2, err := d.decode(vv.Elem(), maxSize)
 	n += n2
 
 	if err != nil {
