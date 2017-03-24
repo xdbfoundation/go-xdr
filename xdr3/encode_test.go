@@ -364,7 +364,7 @@ func TestMarshal(t *testing.T) {
 
 	// bad enum
 	w = newFixedWriter(4)
-	_, err = Marshal(w, AnEnum(2))
+	_, err = Marshal(w, AnEnum(3))
 	rv = w.Bytes()
 
 	if err == nil {
@@ -413,7 +413,7 @@ func TestMarshal(t *testing.T) {
 	// Union encoding
 	// void arm
 	var u aUnion
-	u.Type = AnEnum(1)
+	u.Type = AnEnum(2)
 	w = newFixedWriter(4)
 	n, err = Marshal(w, u)
 	rv = w.Bytes()
@@ -426,7 +426,7 @@ func TestMarshal(t *testing.T) {
 		t.Errorf("union encode: unexpected len - got: %v want: 4\n", n)
 	}
 
-	if !reflect.DeepEqual([]byte{0x00, 0x00, 0x00, 0x01}, rv) {
+	if !reflect.DeepEqual([]byte{0x00, 0x00, 0x00, 0x02}, rv) {
 		t.Errorf("union encode: unexpected result - got: %v", rv)
 	}
 
