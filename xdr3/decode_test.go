@@ -963,3 +963,51 @@ func TestSizedField(t *testing.T) {
 		}
 	}
 }
+
+type defEnum int32
+
+func (e defEnum) ValidEnum(v int32) bool {
+	return v < 1
+}
+
+type defUnion struct {
+	Type defEnum
+	Data *int32
+}
+
+func (u defUnion) SwitchFieldName() string {
+	return "Type"
+}
+
+func (u defUnion) ArmForSwitch(sw int32) (string, bool) {
+	switch sw {
+	case 0:
+		return "Data", true
+	default: // void
+		return "", true
+	}
+
+	return "-", false
+}
+
+func TestUnion_EnumValidation(t *testing.T) {
+
+	var u defUnion
+	var buf bytes.Buffer
+
+	// encode a union with invalid value fails
+	u.Type = defEnum(3)
+	_, err := Marshal(&buf, u)
+
+	if err == nil {
+		t.Errorf("expected error when marshaling invalid enum, got none.  result: %#v", buf.Bytes())
+	}
+
+	// decoding an invalid enum value into a union results in an error
+	u = defUnion{}
+	invalid := []byte{0x0, 0x0, 0x0, 0x3}
+	_, err = Unmarshal(bytes.NewReader(invalid), &u)
+	if err == nil {
+		t.Errorf("expected error when unmarshaling invalid enum into union, got none.  result: %#v", u)
+	}
+}

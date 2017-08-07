@@ -507,6 +507,16 @@ func (d *Decoder) decodeUnion(v reflect.Value) (int, error) {
 	}
 
 	vs := v.FieldByName(u.SwitchFieldName())
+
+	// ensure the switch field is a valid enum value for the union, if possible
+	enum, ok := vs.Interface().(Enum)
+
+	if ok && !enum.ValidEnum(i) {
+		msg := fmt.Sprintf("switch '%d' is not valid enum value for union", i)
+		err := unmarshalError("decode", ErrBadUnionSwitch, msg, nil, nil)
+		return n, err
+	}
+
 	vs.SetInt(int64(i))
 
 	arm, ok := u.ArmForSwitch(i)
