@@ -1039,6 +1039,6 @@ func TestPaddedReads(t *testing.T) {
 	}))
 	_, _, err = dec.DecodeOpaque(3)
 	if err == nil {
-		t.Error("expected error when unmarshaling string with non-zero padding byte, got none")
+		t.Error("expected error when unmarshaling varopaque with non-zero padding byte, got none")
 	}
 }
