@@ -1011,3 +1011,34 @@ func TestUnion_EnumValidation(t *testing.T) {
 		t.Errorf("expected error when unmarshaling invalid enum into union, got none.  result: %#v", u)
 	}
 }
+
+func TestPaddedReads(t *testing.T) {
+	// regression test for non-zeroed padding
+
+	// opaque
+	dec := NewDecoder(bytes.NewReader([]byte{0x0, 0x0, 0x1, 0x1}))
+	_, _, err := dec.DecodeFixedOpaque(3)
+	if err == nil {
+		t.Error("expected error when unmarshaling opaque with non-zero padding byte, got none")
+	}
+
+	// string
+	dec = NewDecoder(bytes.NewReader([]byte{
+		0x0, 0x0, 0x0, 0x1,
+		0x1, 0x1, 0x0, 0x0,
+	}))
+	_, _, err = dec.DecodeString(3)
+	if err == nil {
+		t.Error("expected error when unmarshaling string with non-zero padding byte, got none")
+	}
+
+	// read varopaque
+	dec = NewDecoder(bytes.NewReader([]byte{
+		0x0, 0x0, 0x0, 0x1,
+		0x1, 0x0, 0x0, 0x1,
+	}))
+	_, _, err = dec.DecodeOpaque(3)
+	if err == nil {
+		t.Error("expected error when unmarshaling varopaque with non-zero padding byte, got none")
+	}
+}

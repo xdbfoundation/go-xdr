@@ -321,7 +321,23 @@ func (d *Decoder) DecodeFixedOpaque(size int32) ([]byte, int, error) {
 			err)
 		return nil, n, err
 	}
+
+	if !d.checkPadding(buf, size) {
+		msg := "non-zero padding"
+		err := unmarshalError("DecodeFixedOpaque", ErrIO, msg, buf[:n], nil)
+		return nil, n, err
+	}
+
 	return buf[0:size], n, nil
+}
+
+func (d *Decoder) checkPadding(buf []byte, size int32) bool {
+	for _, pad := range buf[size:len(buf)] {
+		if pad != 0x00 {
+			return false
+		}
+	}
+	return true
 }
 
 // DecodeOpaque treats the next bytes as variable length XDR encoded opaque
