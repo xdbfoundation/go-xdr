@@ -1,0 +1,17 @@
+version: 2.1
+
+jobs:
+  test_with_go_1.12:
+    docker:
+      - image: circleci/golang:1.12-stretch
+    working_directory: /go/src/github.com/stellar/go
+    steps:
+      - checkout
+      - run: ./gotest.sh
+  test_with_go_1.13:
+    docker:
+      - image: circleci/golang:1.13-stretch
+    working_directory: /go/src/github.com/stellar/go
+    steps:
+      - checkout
+      - run: ./gotest.sh
