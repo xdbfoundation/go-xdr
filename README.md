@@ -1,9 +1,7 @@
 # go-xdr
 
-[![Build Status](https://travis-ci.org/stellar/go-xdr.png?branch=master)]
-(https://travis-ci.org/stellar/go-xdr) [![Coverage Status]
-[![GoDoc](https://godoc.org/github.com/stellar/go-xdr/xdr3?status.png)]
-(http://godoc.org/github.com/stellar/go-xdr/xdr2)
+[![Build Status](https://travis-ci.org/stellar/go-xdr.png?branch=master)](https://travis-ci.org/stellar/go-xdr)
+[![GoDoc](https://godoc.org/github.com/stellar/go-xdr/xdr3?status.png)](http://godoc.org/github.com/stellar/go-xdr/xdr2)
 
 Go-xdr implements the data representation portion of the External Data
 Representation (XDR) standard protocol as specified in RFC 4506 (obsoletes RFC
@@ -24,4 +22,4 @@ changes to pointer decoding, ability to constrain sizes and some fixes.
 
 Licensed under the ISC License.
 
-original go-xdr: https://github.com/davecgh/go-xdr
+[original go-xdr]: https://github.com/davecgh/go-xdr
