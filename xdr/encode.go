@@ -127,7 +127,7 @@ func (enc *Encoder) EncodeInt(v int32) (err error) {
 	return
 }
 
-// EncodeInt appends the XDR encoded representation of the passed 32-bit
+// EncodeUint appends the XDR encoded representation of the passed 32-bit
 // unsigned integer to the Encoder's data.
 //
 // A MarshalError is returned if appending the data would overflow the
@@ -170,7 +170,7 @@ func (enc *Encoder) EncodeEnum(v int32, validEnums map[int32]bool) (err error) {
 	return enc.EncodeInt(v)
 }
 
-// EncodeInt appends the XDR encoded representation of the passed boolean
+// EncodeBool appends the XDR encoded representation of the passed boolean
 // to the Encoder's data.
 //
 // A MarshalError is returned if appending the data would overflow the
