@@ -1,7 +1,7 @@
 # go-xdr
 
-[![Build Status](https://github.com/stellar/go-xdr/workflows/Go/badge.svg)](https://github.com/stellar/go-xdr/actions)
-[![GoDoc](https://godoc.org/github.com/stellar/go-xdr/xdr3?status.png)](http://godoc.org/github.com/stellar/go-xdr/xdr3)
+[![Build Status](https://github.com/xdbfoundation/go-xdr/workflows/Go/badge.svg)](https://github.com/xdbfoundation/go-xdr/actions)
+[![GoDoc](https://godoc.org/github.com/xdbfoundation/go-xdr/xdr3?status.png)](http://godoc.org/github.com/xdbfoundation/go-xdr/xdr3)
 
 Go-xdr implements the data representation portion of the External Data
 Representation (XDR) standard protocol as specified in RFC 4506 (obsoletes RFC
@@ -9,7 +9,7 @@ Representation (XDR) standard protocol as specified in RFC 4506 (obsoletes RFC
 
 Version 1 and 2 of this package are available in the `xdr` and `xdr2` packages
 respectively. The current version is in the `xdr3` package. Stellar exclusively
-uses the `xdr3` version in `stellar/go`.
+uses the `xdr3` version in `xdbfoundation/go`.
 
 ## Thanks
 

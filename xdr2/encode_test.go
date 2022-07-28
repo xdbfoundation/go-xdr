@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/stellar/go-xdr/xdr2"
+	. "github.com/xdbfoundation/go-xdr/xdr2"
 )
 
 // testExpectedMRet is a convenience method to test an expected number of bytes

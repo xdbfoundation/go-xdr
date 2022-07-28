@@ -21,7 +21,7 @@ import (
 	"io"
 	"testing"
 
-	. "github.com/stellar/go-xdr/xdr3"
+	. "github.com/xdbfoundation/go-xdr/xdr3"
 )
 
 // TestErrorCodeStringer tests the stringized output for the ErrorCode type.

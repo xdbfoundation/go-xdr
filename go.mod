@@ -1,3 +1,3 @@
-module github.com/stellar/go-xdr
+module github.com/xdbfoundation/go-xdr
 
 go 1.12

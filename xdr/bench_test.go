@@ -20,7 +20,7 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/stellar/go-xdr/xdr"
+	"github.com/xdbfoundation/go-xdr/xdr"
 )
 
 func BenchmarkUnmarshal(b *testing.B) {
